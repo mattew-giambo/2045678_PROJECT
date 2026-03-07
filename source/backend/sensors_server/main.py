@@ -1,4 +1,5 @@
 import requests
+import threading
 import time
 import json
 import stomp
@@ -73,44 +74,58 @@ def connect_to_activemq():
             print(f"ActiveMQ is not ready yet. Retrying in 3 seconds... (Error: {e})")
             time.sleep(3)
 
-def poll_sensors():
+def poll_single_sensor_forever(sensor_id, conn):
     """
-    Main execution loop.
-    Periodically fetches data from the REST API, normalizes it, and publishes it to the broker.
+    This function represents the 'lifecycle' of a single Thread. 
+    It runs in an infinite loop.
     """
-    conn = connect_to_activemq()
-    print("Starting REST Polling service on ActiveMQ...")
+    url = f"{SIMULATOR_BASE_URL}/api/sensors/{sensor_id}"
+    destination = f"/topic/sensor.rest.{sensor_id}"
+    
+    print(f" Thread started for sensor: {sensor_id}")
     
     while True:
-        for sensor_id in SENSORS_TO_POLL:
-            url = f"{SIMULATOR_BASE_URL}/api/sensors/{sensor_id}"
+        try:
+            # timeout=3 prevents the thread from hanging indefinitely if the network goes down
+            response = requests.get(url, timeout=3) 
             
-            try:
-                # 1. Fetch data from the simulator
-                response = requests.get(url)
+            if response.status_code == 200:
+                raw_data = response.json()
+                standard_event = normalize_rest_data(raw_data)
                 
-                if response.status_code == 200:
-                    raw_data = response.json()
-                    
-                    # 2. Normalize the raw data
-                    standard_event = normalize_rest_data(raw_data)
-                    
-                    # 3. Define the destination Topic (STOMP topics start with /topic/)
-                    destination = f"/topic/sensor.rest.{sensor_id}"
-                    
-                    # 4. Publish the normalized event to the broker
-                    conn.send(
-                        body=json.dumps(standard_event), 
-                        destination=destination
-                    )
-                    
-                    print(f"📡 [Published] {destination}")
-                    
-            except Exception as e:
-                print(f"Error polling {sensor_id}: {e}")
+                conn.send(body=json.dumps(standard_event), destination=destination)
+                print(f" [{sensor_id}] Published to {destination}")
+            else:
+                print(f" [{sensor_id}] Server error: {response.status_code}")
                 
-        # Wait 5 seconds before the next polling cycle
+        except Exception as e:
+            print(f" [{sensor_id}] Network error: {e}")
+            
+        # The thread sleeps for 5 seconds, completely independent of the other threads
         time.sleep(5)
 
+def start_all_threads():
+    """Establishes the connection and spawns a Thread for each sensor."""
+    conn = connect_to_activemq()
+    print(" Starting Multi-Threaded Poller...")
+    
+    # 1. Create and start the worker Threads
+    for sensor in SENSORS_TO_POLL:
+        # Assign the target function and pass the sensor ID and connection as arguments
+        t = threading.Thread(target=poll_single_sensor_forever, args=(sensor, conn))
+        
+        # daemon=True means: if the main program/container stops, kill this thread immediately
+        t.daemon = True 
+        t.start()
+        
+    # 2. The main Thread (this one) has nothing left to do.
+    # It just needs to stay alive in an empty loop to prevent the program from exiting.
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Shutting down...")
+        conn.disconnect()
+
 if __name__ == "__main__":
-    poll_sensors()
+    start_all_threads()
