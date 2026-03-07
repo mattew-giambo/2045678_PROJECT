@@ -1,5 +1,5 @@
 import asyncio
-from telemetry_client import start_telemetry_listeners
+from src.telemetry_client import start_telemetry_listeners
 
 # List of topics from the mission briefing
 TELEMETRY_TOPICS = [
