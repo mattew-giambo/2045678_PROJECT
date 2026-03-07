@@ -1,6 +1,4 @@
 import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
 from telemetry_client import start_telemetry_listeners
 
 # List of topics from the mission briefing
@@ -14,26 +12,30 @@ TELEMETRY_TOPICS = [
     "mars/telemetry/airlock"
 ]
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup (before the server starts): Launch a background async task for each telemetry topic
-    print("Starting background tasks...")
+async def main():
+    print("Starting background tasks for telemetry topics...")
+    
+    # 1. Create a concurrent task for each topic
     tasks = []
     for topic in TELEMETRY_TOPICS:
-        task = asyncio.create_task(start_telemetry_listeners(topic)) # Start the telemetry listener for this topic in the background
-        tasks.append(task) # Keep track of the task so we can cancel it on shutdown
+        # Start the telemetry listener for this topic in the background
+        task = asyncio.create_task(start_telemetry_listeners(topic))
+        tasks.append(task)
+        
+    print(f"Successfully launched {len(tasks)} telemetry listeners.")
 
-    # Server is running
-    yield # This line hands control back to FastAPI.
-    
-    # Shutdown (after the server stops): Cancel the tasks gracefully
-    for task in tasks:
-        task.cancel()
+    try:
+        # 2. Keep the main thread alive and let all the tasks run forever
+        await asyncio.gather(*tasks)
+        
+    except asyncio.CancelledError:
+        print("\nReceived shutdown signal. Canceling tasks...")
+        for task in tasks:
+            task.cancel()
 
-# Create the FastAPI App
-app = FastAPI(title="Ingestion Microservice", lifespan=lifespan)
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "Ingestion service is running"}
+if __name__ == "__main__":
+    try:
+        # 3. Start the asyncio event loop
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nIngestion Microservice stopped manually by user (Ctrl+C).")

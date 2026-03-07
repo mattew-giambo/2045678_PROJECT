@@ -16,17 +16,24 @@ def normalize_telemetry(topic: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Takes a raw telemetry payload from the simulator and normalizes it
     into the standard unified internal event schema.
+
+    Args
+        topic (str): The telemetry topic (e.g., "mars/telemetry/solar_array").
+        raw_data (Dict[str, Any]): The raw telemetry data as received from the simulator for that topic.
+    Returns
+        Dict[str, Any]: A normalized event dictionary following the unified schema.
     """
 
-    # 1. Initialize the base unified event matching the screenshot EXACTLY
+    # 1. Initialize the base unified event
     unified_event = {
-        "device_id": topic,
-        "time": raw_data.get("event_time", ""), # Changed from timestamp to "time"
-        "status": raw_data.get("status", "ok"), # Must be "ok" or "warning"
-        "metrics": [], # Initialized as an array!
+        "device_id": topic.split("/")[-1],
+        "time": raw_data.get("event_time", ""),  # Using "time" to match your schema!
+        "status": raw_data.get("status", "ok"),
+        "metrics": [],  
         "metadata": {}
     }
 
+    # Convenience references
     metrics = unified_event["metrics"]
     metadata = unified_event["metadata"]
 
@@ -34,7 +41,6 @@ def normalize_telemetry(topic: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
     if topic in POWER_TOPICS:
         metadata["subsystem"] = raw_data.get("subsystem", "unknown")
 
-        # Clean mapping to extract units from the raw key names
         power_map = {
             "power_kw": ("power", "kW"),
             "voltage_v": ("voltage", "V"),
@@ -46,14 +52,14 @@ def normalize_telemetry(topic: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
             value = raw_data.get(raw_key)
             if value is not None:
                 metrics.append({
-                    "metric_name": metric_name, 
-                    "value": value, 
+                    "metric_name": metric_name,
+                    "value": value,
                     "unit": unit
                 })
 
     # 3. Handle Environment Topics (topic.environment.v1)
     elif topic in ENVIRONMENT_TOPICS:
-        # Keep source nested inside metadata as requested!
+        # Keep source nested inside metadata
         source = raw_data.get("source", {})
         if source:
             metadata["source"] = {
@@ -68,16 +74,14 @@ def normalize_telemetry(topic: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
 
             raw_metric_name = item.get("metric")
             value = item.get("value")
-            
+
             if raw_metric_name and value is not None:
                 metric_obj = {
                     "metric_name": raw_metric_name,
                     "value": value
                 }
-                # If the raw data happens to have a unit, include it
                 if "unit" in item:
                     metric_obj["unit"] = item["unit"]
-                
                 metrics.append(metric_obj)
 
     # 4. Handle Thermal Loop Topic (topic.thermal_loop.v1)
@@ -93,8 +97,8 @@ def normalize_telemetry(topic: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
             value = raw_data.get(raw_key)
             if value is not None:
                 metrics.append({
-                    "metric_name": metric_name, 
-                    "value": value, 
+                    "metric_name": metric_name,
+                    "value": value,
                     "unit": unit
                 })
 
@@ -105,15 +109,14 @@ def normalize_telemetry(topic: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
 
         value = raw_data.get("cycles_per_hour")
         if value is not None:
-            # Cleanly separate the "per_hour" into the unit field
             metrics.append({
-                "metric_name": "cycles", 
-                "value": value, 
+                "metric_name": "cycles",
+                "value": value,
                 "unit": "per_hour"
             })
 
     # 6. Print normalized event for debugging
-    print(f"\n[NORMALIZED] topic={topic}")
+    print(f"\n[NORMALIZED] topic={unified_event['device_id']}")
     print(f"  time      : {unified_event['time']}")
     print(f"  status    : {unified_event['status']}")
     print(f"  metrics   : {unified_event['metrics']}")

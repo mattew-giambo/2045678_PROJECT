@@ -4,10 +4,11 @@
 
 ```
 telemetry_server/
-├── main.py             # FastAPI app entry point & lifecycle manager
+├── main.py             # Async entrypoint — spawns background listeners
 ├── telemetry_client.py # WebSocket consumer & pipeline trigger
 ├── normalizer.py       # Raw-to-unified data transformer
-└── broker.py           # ActiveMQ publisher (defined, not yet wired)
+├── broker_client.py    # ActiveMQ publisher via STOMP
+└── Dockerfile          # Container definition
 ```
 
 ---
@@ -16,12 +17,11 @@ telemetry_server/
 
 ```
 main.py
-  └── on startup: spawns 7 background tasks (one per topic)
+  └── asyncio.run(main()) → spawns 7 background tasks (one per topic)
         └── telemetry_client.py  →  connects to simulator WebSocket
               └── receives raw JSON message
                     └── normalizer.py  →  converts to unified event schema
-                          └── prints unified event to terminal
-                                (broker.py is ready to forward to ActiveMQ)
+                          └── broker_client.py  →  publishes to ActiveMQ
 ```
 
 ---
@@ -30,83 +30,108 @@ main.py
 
 ---
 
-### 1. `main.py` — Entry Point & Lifecycle Manager
+### 1. `main.py` — Async Entrypoint
 
-**Role:** Bootstraps the entire service and manages the lifecycle of background listeners.
+**Role:** Bootstraps the service and manages the lifecycle of all background listeners.
 
 **Step-by-step logic:**
-1. Defines the list of 7 MQTT-style telemetry topics that the service must ingest (solar array, radiation, life support, thermal loop, power bus, power consumption, airlock).
-2. On **startup** (before FastAPI begins serving requests), it loops over every topic and creates an independent async background task for each one by calling `start_telemetry_listeners(topic)`.
-3. It yields control back to FastAPI — the server is now running and the background tasks are all alive in parallel.
-4. On **shutdown** (after FastAPI stops), it cancels every background task gracefully so no connections hang.
-5. Exposes a single `GET /health` endpoint that returns a status confirmation — useful for Docker health checks or load balancers.
+1. Defines the list of 7 telemetry topics to ingest (solar_array, radiation, life_support, thermal_loop, power_bus, power_consumption, airlock).
+2. `main()` creates one `asyncio` background task per topic by calling `start_telemetry_listeners(topic)`.
+3. `asyncio.gather(*tasks)` runs all 7 tasks concurrently on the same event loop.
+4. On shutdown (SIGINT / container stop), all tasks are cancelled gracefully.
 
-**Key concept:** Uses FastAPI's `lifespan` context manager (instead of deprecated `startup`/`shutdown` events) to tie the background task lifecycle directly to the app lifecycle.
+**Key concept:** No web framework is used — this is a pure background worker service. `asyncio.run(main())` is the idiomatic entrypoint for I/O-bound pipeline workers that don't need to expose HTTP endpoints.
 
 ---
 
 ### 2. `telemetry_client.py` — WebSocket Consumer & Pipeline Trigger
 
-**Role:** The "data ingestion worker". Maintains a persistent WebSocket connection to the simulator for one topic and drives the processing pipeline for each incoming message.
+**Role:** The "data ingestion worker". Maintains a persistent WebSocket connection to the simulator for one topic and drives the full processing pipeline per message.
 
 **Step-by-step logic:**
-1. Receives a `topic` string from `main.py` (e.g., `"mars/telemetry/solar_array"`).
-2. Builds the full WebSocket URL by appending the topic as a query parameter to the simulator's base URL.
-3. Enters an outer `while True` loop — this is the **reconnection loop**. If the connection ever drops, the worker will automatically retry after 5 seconds.
-4. Inside the connection, enters an inner `while True` loop — this is the **message loop**. It continuously awaits the next message from the simulator without blocking other tasks.
-5. For each raw message received:
-   - Parses the JSON string into a Python dictionary.
-   - Calls `normalize_telemetry(topic, raw_data)` from `normalizer.py` to convert it into the unified event schema.
-   - Prints the unified event to the terminal (debug/development mode).
-6. Handles `ConnectionClosed` specifically (expected disconnect) and any other `Exception` as a catch-all, both triggering a 5-second sleep before reconnecting.
+1. Receives a `topic` string (e.g., `"mars/telemetry/solar_array"`).
+2. Builds the full WebSocket URL: `ws://localhost:8080/api/telemetry/ws?topic=<topic>`.
+3. Outer `while True` — **reconnection loop**: retries every 5 seconds on connection loss.
+4. Inner `while True` — **message loop**: awaits each incoming message without blocking other tasks.
+5. For each message:
+   - Parses JSON into a Python dict.
+   - Calls `normalize_telemetry(topic, raw_data)` → unified event.
+   - Calls `publish_to_activemq(unified_event, "telemetry")` → sends to broker.
+6. Handles `ConnectionClosed` and generic exceptions gracefully with a 5-second retry.
 
-**Key concept:** `async with websockets.connect(...)` and `await websocket.recv()` allow 7 simultaneous connections to run cooperatively on a single thread without blocking each other.
+**Key concept:** `async with websockets.connect(...)` and `await websocket.recv()` allow all 7 listeners to run cooperatively on a single thread.
 
 ---
 
 ### 3. `normalizer.py` — Raw-to-Unified Data Transformer
 
-**Role:** The "data translator". Knows the schema of every raw telemetry format and maps each one to a single standardized internal event object.
+**Role:** Translates every raw simulator payload into a single standardized internal event shape.
 
 **Step-by-step logic:**
 
-1. **Initialises a base unified event** object with four common fields present for every topic:
-   - `device_id` — set to the topic string (acts as the unique sensor identifier).
-   - `timestamp` — extracted from `event_time` in the raw payload.
-   - `status` — extracted from `status` if present, otherwise defaults to `"ok"`.
-   - `metrics` — empty dict, will be populated per schema type.
-   - `metadata` — empty dict, will be populated per schema type.
+1. **Initialises a base unified event** with fields common to all topics:
+   - `device_id` — last segment of the topic string (e.g., `"solar_array"` not the full path).
+   - `time` — extracted from `event_time` in the raw payload.
+   - `status` — extracted from `status` if present, defaults to `"ok"`.
+   - `metrics` — empty **array**, populated per schema type.
+   - `metadata` — empty dict, populated per schema type.
 
-2. **Branches by schema type** using topic membership checks:
+2. **Branches by schema type:**
 
-   | Schema Type | Topics Covered | What Gets Extracted |
-   |---|---|---|
-   | **Power** (`topic.power.v1`) | `solar_array`, `power_bus`, `power_consumption` | `subsystem` → metadata; `power_kw`, `voltage_v`, `current_a`, `cumulative_kwh` → metrics |
-   | **Environment** (`topic.environment.v1`) | `radiation`, `life_support` | `source.system` + `source.segment` → metadata; flattens the `measurements` array into key/value metrics |
-   | **Thermal Loop** (`topic.thermal_loop.v1`) | `thermal_loop` | `loop` → metadata; `temperature_c`, `flow_l_min` → metrics |
-   | **Airlock** (`topic.airlock.v1`) | `airlock` | `airlock_id` + `last_state` → metadata; `cycles_per_hour` → metrics |
+   | Schema Type | Topics Covered | Metrics format | Metadata |
+   |---|---|---|---|
+   | **Power** | `solar_array`, `power_bus`, `power_consumption` | `{metric_name, value, unit}` objects with explicit units (kW, V, A, kWh) | `subsystem` |
+   | **Environment** | `radiation`, `life_support` | `{metric_name, value, unit?}` from raw `measurements` array | nested `source: {system, segment}` |
+   | **Thermal Loop** | `thermal_loop` | `{metric_name, value, unit}` — temperature in C, flow in L/min | `loop` |
+   | **Airlock** | `airlock` | `{metric_name: "cycles", value, unit: "per_hour"}` | `airlock_id`, `last_state` |
 
-3. **Returns the unified event** dict — the same shape regardless of which topic it came from.
+3. **Prints the normalized event** to stdout for debugging.
+4. **Returns the unified event** dict.
 
-**Key concept:** Separating `metrics` (numerical health measurements) from `metadata` (contextual/descriptive info) makes downstream consumers (dashboards, alerting rules) schema-agnostic.
+**Key concept:** `metrics` is an array of typed objects `{metric_name, value, unit}` — units are explicit fields, not baked into key names. `device_id` is the short endpoint name, not the full topic path.
 
 ---
 
-### 4. `broker.py` — ActiveMQ Publisher
+### 4. `broker_client.py` — ActiveMQ Publisher
 
-**Role:** The "message dispatcher". Knows how to connect to ActiveMQ and publish a unified event to the shared enterprise topic.
+**Role:** Connects to ActiveMQ via STOMP and routes each unified event to a dynamically named topic.
 
 **Step-by-step logic:**
-1. Defines the connection parameters: ActiveMQ host (`localhost`, intended to be `activemq` in Docker Compose), STOMP port `61613`, and the destination topic `/topic/mars.habitat.events`.
-2. `get_connection()` — creates a STOMP client connection with admin credentials and returns it.
-3. `publish_to_activemq(unified_event)`:
-   - Opens a new connection via `get_connection()`.
-   - Serialises the unified event dict to a JSON string.
-   - Sends it to the ActiveMQ topic.
-   - Immediately disconnects (fire-and-forget pattern).
-   - Catches and logs any exception without crashing the caller.
+1. `BrokerClient.connect()` — creates or reuses a STOMP connection to `localhost:61613` with admin credentials.
+2. `BrokerClient.publish(unified_event, category)`:
+   - Extracts `device_id` from the event (e.g., `"solar_array"`).
+   - Builds the destination topic: `/topic/<category>.<device_id>` → e.g., `/topic/telemetry.solar_array`.
+   - Serialises the event to JSON and sends it.
+   - Resets the connection on failure so the next call reconnects automatically.
+3. A module-level singleton `activemq_client` is shared across all 7 listener tasks.
+4. `publish_to_activemq(unified_event, category)` is the public function imported by `telemetry_client.py`.
 
-**Current status:** This module is fully implemented but **not yet wired** into `telemetry_client.py`. The client currently prints unified events to the terminal instead of calling `publish_to_activemq()`. The next integration step would be to import and call `publish_to_activemq(unified_event)` in `telemetry_client.py` after normalization.
+**Published topic names:**
+```
+/topic/telemetry.solar_array
+/topic/telemetry.power_bus
+/topic/telemetry.power_consumption
+/topic/telemetry.radiation
+/topic/telemetry.life_support
+/topic/telemetry.thermal_loop
+/topic/telemetry.airlock
+```
+
+**Note:** The simulator also publishes its own raw data directly to ActiveMQ under `mars.data.telemetry.*` topics. Those are independent of this server and contain unnormalized payloads.
+
+---
+
+### 5. `Dockerfile` — Container Definition
+
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir websockets==16.0 stomp.py==8.2.0
+CMD ["python", "main.py"]
+```
+
+Only two third-party dependencies are needed: `websockets` (simulator connection) and `stomp.py` (ActiveMQ connection). No web framework is required.
 
 ---
 
@@ -127,15 +152,15 @@ main.py
 ### Unified event output (all topics)
 ```json
 {
-  "device_id": "mars/telemetry/solar_array",
-  "timestamp": "2026-03-06T10:00:00Z",
+  "device_id": "solar_array",
+  "time": "2026-03-06T10:00:00Z",
   "status": "ok",
-  "metrics": {
-    "power_kw": 12.5,
-    "voltage_v": 28.4,
-    "current_a": 44.0,
-    "cumulative_kwh": 3021.7
-  },
+  "metrics": [
+    { "metric_name": "power",            "value": 12.5,   "unit": "kW"  },
+    { "metric_name": "voltage",          "value": 28.4,   "unit": "V"   },
+    { "metric_name": "current",          "value": 44.0,   "unit": "A"   },
+    { "metric_name": "cumulative_energy","value": 3021.7, "unit": "kWh" }
+  ],
   "metadata": {
     "subsystem": "solar_array"
   }
