@@ -1,8 +1,8 @@
 import asyncio
 import json
 import websockets
-from src.normalizer import normalize_telemetry
-from src.broker_client import publish_to_activemq 
+from src.utility.normalizer import normalize_telemetry
+from src.utility.broker_client import publish_to_activemq 
 
 # The WebSocket URL for the simulator's telemetry stream
 SIMULATOR_WS_URL = "ws://localhost:8080/api/telemetry/ws?topic="
