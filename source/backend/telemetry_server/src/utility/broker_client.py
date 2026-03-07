@@ -1,8 +1,8 @@
 import stomp
 import json
 
-ACTIVEMQ_HOST = "localhost" 
-ACTIVEMQ_PORT = 61613
+from src.config.costants import ACTIVEMQ_HOST, ACTIVEMQ_PORT
+from src.config.costants import ACTIVEMQ_USER, ACTIVEMQ_PASSWORD
 
 class BrokerClient:
     def __init__(self):
@@ -12,7 +12,7 @@ class BrokerClient:
         if not self.conn or not self.conn.is_connected():
             try:
                 self.conn = stomp.Connection([(ACTIVEMQ_HOST, ACTIVEMQ_PORT)])
-                self.conn.connect('admin', 'admin', wait=True)
+                self.conn.connect(ACTIVEMQ_USER, ACTIVEMQ_PASSWORD, wait=True)
                 print("Successfully connected to ActiveMQ!")
             except Exception as e:
                 print(f"ActiveMQ Connection Error: {e}")
