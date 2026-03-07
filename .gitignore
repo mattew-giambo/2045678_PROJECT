@@ -1,3 +1,4 @@
 .vscode
 .DS_Store
-source/maria_db/data
+maria_db/data
+__pycache__/
