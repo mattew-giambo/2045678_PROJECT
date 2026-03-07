@@ -1,7 +1,7 @@
 import time
 import stomp
 
-from confing import ACTIVEMQ_HOST, ACTIVEMQ_PORT
+from src.config.constants import ACTIVEMQ_HOST, ACTIVEMQ_PORT, ACTIVEMQ_USER, ACTIVEMQ_PASS
 
 def connect_to_activemq():
     """
@@ -10,13 +10,11 @@ def connect_to_activemq():
     """
     print("Connecting to ActiveMQ...")
     
-    # Configure the connection to the broker container
     conn = stomp.Connection([(ACTIVEMQ_HOST, ACTIVEMQ_PORT)])
     
     while True:
         try:
-            # Default ActiveMQ credentials (admin/admin)
-            conn.connect('admin', 'admin', wait=True)
+            conn.connect(ACTIVEMQ_USER, ACTIVEMQ_PASS, wait=True)
             print("Successfully connected to ActiveMQ!")
             return conn
         except Exception as e:

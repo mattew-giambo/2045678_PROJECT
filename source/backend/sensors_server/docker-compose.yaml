@@ -14,7 +14,7 @@ services:
       - "8080:8080"
 
   rest_poller:
-    build: .  
+    build: ./
     container_name: mars_rest_poller
     restart: always
     depends_on:
@@ -22,7 +22,4 @@ services:
       - activemq
     environment:
       - PYTHONUNBUFFERED=1
-      - BROKER_HOST=activemq
-      - BROKER_PORT=61613
-      - SIMULATOR_URL=http://simulator:8080
 

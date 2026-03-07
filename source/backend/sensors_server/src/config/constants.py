@@ -1,10 +1,10 @@
-import os
+SIMULATOR_BASE_URL = "http://simulator"
+SIMULATOR_PORT= 8080
+ACTIVEMQ_HOST = "activemq"
+ACTIVEMQ_PORT = 61613
+ACTIVEMQ_USER = "admin"
+ACTIVEMQ_PASS = "admin"
 
-# CONFIGURATION & ENVIRONMENT VARIABLES 
-
-SIMULATOR_BASE_URL = os.getenv("SIMULATOR_URL", "http://simulator:8080")
-ACTIVEMQ_HOST = os.getenv("BROKER_HOST", "activemq")
-ACTIVEMQ_PORT = int(os.getenv("BROKER_PORT", "61613")) # STOMP protocol port
 
 # List of REST endpoints (sensors) to poll based on the project contracts
 SENSORS_TO_POLL = [

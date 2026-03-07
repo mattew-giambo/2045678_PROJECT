@@ -1,9 +1,9 @@
 import threading
 import time
 
-from confing import SENSORS_TO_POLL
-from broker import connect_to_activemq
-from poller import poll_single_sensor_forever
+from src.config.constants import SENSORS_TO_POLL
+from src.utility.broker import connect_to_activemq
+from src.utility.poller import poll_single_sensor_forever
 
 
 def start_all_threads():

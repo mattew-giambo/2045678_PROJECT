@@ -2,15 +2,15 @@ import requests
 import time
 import json
 
-from confing import SIMULATOR_BASE_URL
-from normalizer import normalize_rest_data
+from src.config.constants import SIMULATOR_BASE_URL, SIMULATOR_PORT
+from src.utility.normalizer import normalize_rest_data
 
 def poll_single_sensor_forever(sensor_id, conn):
     """
     This function represents the 'lifecycle' of a single Thread. 
     It runs in an infinite loop.
     """
-    url = f"{SIMULATOR_BASE_URL}/api/sensors/{sensor_id}"
+    url = f"{SIMULATOR_BASE_URL}:{SIMULATOR_PORT}/api/sensors/{sensor_id}"
     destination = f"/topic/sensor.rest.{sensor_id}"
     
     print(f" Thread started for sensor: {sensor_id}")
