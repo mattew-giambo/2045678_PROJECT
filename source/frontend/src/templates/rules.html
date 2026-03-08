@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarsNet Dashboard - Rules</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" type="image/png" href="/static/mars.png">
+
+    <script defer src="/static/js/rules.js"></script>
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <img src="/static/mars.png" width="32px" height="32px">
+            MarsNet
+        </div>
+        <div class="nav-label">Navigation</div>
+        <a href="/" class="nav-item">Home</a>
+        <a href="/dashboard/sensors_telemetry" class="nav-item">Sensors and Telemetry Streams</a>
+        <a href="/dashboard/rules" class="nav-item active">Rules and Actuators</a>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+        <!-- ===== PAGE 3: RULES & ACTUATORS ===== -->
+        <div class="page active" id="page-rules">
+            <div class="actuators-card">
+                <div class="actuators-header">
+                    <div class="section-title" style="margin-bottom:0;">⚙️ Actuators Status</div>
+                    <span class="badge-active-now" id="actuators-active-count">0 active now</span>
+                </div>
+                <div id="actuators-list">
+                    <div class="actuator-row" data-actuator="cooling_fan">
+                        <div class="actuator-info">
+                            <div class="act-name">cooling_fan</div>
+                            <div class="act-controls">Controls: greenhouse_temperature</div>
+                            <div class="act-toggled">Last toggled: --:--:--</div>
+                        </div>
+                        <span class="actuator-status-badge off">OFF</span>
+                    </div>
+                    <div class="actuator-row" data-actuator="entrance_humidifier">
+                        <div class="actuator-info">
+                            <div class="act-name">entrance_humidifier</div>
+                            <div class="act-controls">Controls: entrance_humidity</div>
+                            <div class="act-toggled">Last toggled: --:--:--</div>
+                        </div>
+                        <span class="actuator-status-badge off">OFF</span>
+                    </div>
+                    <div class="actuator-row" data-actuator="hall_ventilation">
+                        <div class="actuator-info">
+                            <div class="act-name">hall_ventilation</div>
+                            <div class="act-controls">Controls: co2_hall</div>
+                            <div class="act-toggled">Last toggled: --:--:--</div>
+                        </div>
+                        <span class="actuator-status-badge off">OFF</span>
+                    </div>
+                    <div class="actuator-row" data-actuator="habitat_heater">
+                        <div class="actuator-info">
+                            <div class="act-name">habitat_heater</div>
+                            <div class="act-controls">Controls: thermal_loop</div>
+                            <div class="act-toggled">Last toggled: --:--:--</div>
+                        </div>
+                        <span class="actuator-status-badge off">OFF</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rule-form-card">
+                <div class="rule-form-title">Create New Rule</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Trigger Sensor</label>
+                        <select id="rule-sensor">
+                            <option value="">Select a sensor</option>
+                            <option value="greenhouse_temperature">greenhouse_temperature (C)</option>
+                            <option value="entrance_humidity">entrance_humidity (%)</option>
+                            <option value="co2_hall">co2_hall (ppm)</option>
+                            <option value="corridor_pressure">corridor_pressure (kPa)</option>
+                            <option value="water_tank_level">water_tank_level (%)</option>
+                            <option value="hydroponic_ph">hydroponic_ph (pH)</option>
+                            <option value="air_quality_pm25">air_quality_pm25 (ug/m3)</option>
+                            <option value="air_quality_voc">air_quality_voc (ppb)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Condition</label>
+                        <select id="rule-operator">
+                            <option value="">Choose a condition</option>
+                            <option value=">">&gt;</option>
+                            <option value=">=">&gt;=</option>
+                            <option value="=">=</option>
+                            <option value="<">&lt;</option>
+                            <option value="<=">&lt;=</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Threshold Value</label>
+                        <input type="number" step="0.1" id="rule-value" placeholder="Enter value">
+                    </div>
+                    <div class="form-group">
+                        <label>Action</label>
+                        <select id="rule-action">
+                            <option value="">Select an action</option>
+                            <option value="ON">ON</option>
+                            <option value="OFF">OFF</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="max-width:50%;">
+                    <label>Target Actuator</label>
+                    <select id="rule-target">
+                        <option value="">Specify target</option>
+                        <option value="cooling_fan">cooling_fan</option>
+                        <option value="entrance_humidifier">entrance_humidifier</option>
+                        <option value="hall_ventilation">hall_ventilation</option>
+                        <option value="habitat_heater">habitat_heater</option>
+                    </select>
+                </div>
+                <div id="rule-feedback-msg" style="display: none; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.85rem; font-weight: 500;"></div>
+
+                <div class="form-actions">
+                    <button class="btn-cancel" id="btn-cancel-rule">Cancel</button>
+                    <button class="btn-create" id="btn-submit-rule">Create Rule</button>
+                </div>
+            </div>
+
+            <div class="rules-table-card">
+                <div class="section-title">📋 Active Rules</div>
+                    <table class="rules-table">
+                        <thead>
+                            <tr>
+                                <th>Rule Logic</th>
+                                <th>Date Defined</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rules-tbody">
+                            <tr id="empty-rules-msg">
+                                <td colspan="3" style="text-align: center; color: #64748b; padding: 30px; font-style: italic; font-size: 0.9rem;">
+                                    No active rules defined. Use the form below to create one.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+    </main>
+</body>
+
+</html>
