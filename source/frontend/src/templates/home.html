@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarsOps Dashboard - Home</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <svg viewBox="0 0 32 32"><text y="22" x="6" font-size="18" fill="white">🚀</text></svg>
+            MarsOps
+        </div>
+        <div class="nav-label">Navigation</div>
+        <a href="home.html" class="nav-item active">Home</a>
+        <a href="sensors.html" class="nav-item">Sensors and Telemetry Streams</a>
+        <a href="rules.html" class="nav-item">Rules and Actuators</a>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+        <!-- ===== PAGE 1: HOME ===== -->
+        <div class="page active" id="page-home">
+            <div class="page-label">Project overview</div>
+            <div class="page-title">Welcome to Mars. Please don't die.</div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">REST sensors provided</div>
+                    <div class="stat-value">8</div>
+                    <div class="stat-desc">Temperature, humidity, CO₂, pH, water level, pressure, PM2.5, VOC.</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Telemetry topics</div>
+                    <div class="stat-value">7</div>
+                    <div class="stat-desc">Available via SSE or WebSocket with default publish interval every 5 seconds.
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Available actuators</div>
+                    <div class="stat-value">4</div>
+                    <div class="stat-desc">cooling_fan, entrance_humidifier, hall_ventilation, habitat_heater.</div>
+                </div>
+            </div>
+
+            <div class="mid-grid">
+                <div class="healthy-card">
+                    <div class="healthy-row">
+                        <div class="healthy-icon green">✓</div>
+                        <div class="healthy-text">
+                            <strong>System Healthy</strong>
+                            <span>All modules operating nominally</span>
+                        </div>
+                    </div>
+                    <div class="healthy-row">
+                        <div class="healthy-icon cal">📅</div>
+                        <div class="healthy-text">
+                            <strong>Connection Date</strong>
+                            <span>2036-10-26 &nbsp;&nbsp; 10:15</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rules-card">
+                    <h3>☑ Active Rules</h3>
+                    <div class="rules-nums">
+                        <div class="rules-num">
+                            <div class="num">3</div>
+                            <div class="lbl">ACTIVE</div>
+                        </div>
+                        <div class="rules-num">
+                            <div class="num">120</div>
+                            <div class="lbl">EXECUTIONS</div>
+                        </div>
+                    </div>
+                    <a href="rules.html" class="btn-manage"
+                        style="display:block; text-align:center; box-sizing:border-box;">Manage Rules</a>
+                </div>
+            </div>
+
+            <div class="history-card">
+                <h3>📋 Action History</h3>
+                <div class="history-row"><span class="history-time">10:45:22</span><span
+                        class="history-text">cooling_fan set to ON by rule</span></div>
+                <div class="history-row"><span class="history-time">10:45:20</span><span
+                        class="history-text">greenhouse_temperature: 24.5 °C</span></div>
+                <div class="history-row"><span class="history-time">08:12:00</span><span
+                        class="history-text">entrance_humidifier set to OFF manually</span></div>
+                <div class="history-row"><span class="history-time">08:11:58</span><span
+                        class="history-text">entrance_humidity: 35 %</span></div>
+                <div class="history-row"><span class="history-time">07:30:15</span><span class="history-text">co2_hall:
+                        412 ppm</span></div>
+                <div class="history-row"><span class="history-time">06:00:00</span><span
+                        class="history-text">hydroponic_ph: 6.2 pH</span></div>
+                <button class="btn-view-all">View All History</button>
+                <div style="clear:both"></div>
+            </div>
+        </div>
+
+        <!-- HISTORY POPUP
+        <div class="popup-overlay" id="history-popup">
+            <div class="popup-content">
+                <div class="popup-header">
+                    <h2>📋 Complete Action History</h2>
+                    <button class="popup-close">&times;</button>
+                </div>
+                <div class="popup-body" id="history-list">
+                    <div class="history-row"><span class="history-time">10:45:22</span><span
+                            class="history-text">cooling_fan set to ON by rule</span></div>
+                    <div class="history-row"><span class="history-time">10:45:20</span><span
+                            class="history-text">greenhouse_temperature: 24.5 °C</span></div>
+                </div>
+            </div>
+        </div> -->
+
+    </main>
+</body>
+
+</html>
