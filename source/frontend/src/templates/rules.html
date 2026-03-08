@@ -4,8 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MarsOps Dashboard - Rules</title>
-    <link rel="stylesheet" href="style.css">
+    <title>MarsNet Dashboard - Rules</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" type="image/png" href="/static/mars.png">
+
+    <script defer src="/static/js/rules.js"></script>
 </head>
 
 <body>
@@ -13,13 +16,13 @@
     <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="sidebar-logo">
-            <svg viewBox="0 0 32 32"><text y="22" x="6" font-size="18" fill="white">🚀</text></svg>
-            MarsOps
+            <img src="/static/mars.png" width="32px" height="32px">
+            MarsNet
         </div>
         <div class="nav-label">Navigation</div>
-        <a href="home.html" class="nav-item">Home</a>
-        <a href="sensors.html" class="nav-item">Sensors and Telemetry Streams</a>
-        <a href="rules.html" class="nav-item active">Rules and Actuators</a>
+        <a href="/" class="nav-item">Home</a>
+        <a href="/dashboard/sensors_telemetry" class="nav-item">Sensors and Telemetry Streams</a>
+        <a href="/dashboard/rules" class="nav-item active">Rules and Actuators</a>
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -75,14 +78,14 @@
                         <label>Trigger Sensor</label>
                         <select id="rule-sensor">
                             <option value="">Select a sensor</option>
-                            <option value="greenhouse_temperature">greenhouse_temperature</option>
-                            <option value="entrance_humidity">entrance_humidity</option>
-                            <option value="co2_hall">co2_hall</option>
-                            <option value="corridor_pressure">corridor_pressure</option>
-                            <option value="water_tank_level">water_tank_level</option>
-                            <option value="hydroponic_ph">hydroponic_ph</option>
-                            <option value="air_quality_pm25">air_quality_pm25</option>
-                            <option value="air_quality_voc">air_quality_voc</option>
+                            <option value="greenhouse_temperature">greenhouse_temperature (C)</option>
+                            <option value="entrance_humidity">entrance_humidity (%)</option>
+                            <option value="co2_hall">co2_hall (ppm)</option>
+                            <option value="corridor_pressure">corridor_pressure (kPa)</option>
+                            <option value="water_tank_level">water_tank_level (%)</option>
+                            <option value="hydroponic_ph">hydroponic_ph (pH)</option>
+                            <option value="air_quality_pm25">air_quality_pm25 (ug/m3)</option>
+                            <option value="air_quality_voc">air_quality_voc (ppb)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -119,33 +122,34 @@
                         <option value="habitat_heater">habitat_heater</option>
                     </select>
                 </div>
+                <div id="rule-feedback-msg" style="display: none; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.85rem; font-weight: 500;"></div>
+
                 <div class="form-actions">
-                    <button class="btn-cancel">Cancel</button>
-                    <button class="btn-create">Create Rule</button>
+                    <button class="btn-cancel" id="btn-cancel-rule">Cancel</button>
+                    <button class="btn-create" id="btn-submit-rule">Create Rule</button>
                 </div>
             </div>
 
             <div class="rules-table-card">
                 <div class="section-title">📋 Active Rules</div>
-                <table class="rules-table">
-                    <thead>
-                        <tr>
-                            <th>Rule Logic</th>
-                            <th>Date Defined</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="rule-logic">IF greenhouse_temperature &gt; 25 THEN cooling_fan = ON</td>
-                            <td>2036-10-26</td>
-                            <td><button class="btn-delete">Delete</button></td>
-                        </tr>
-                    </tbody>
-                </table>
+                    <table class="rules-table">
+                        <thead>
+                            <tr>
+                                <th>Rule Logic</th>
+                                <th>Date Defined</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rules-tbody">
+                            <tr id="empty-rules-msg">
+                                <td colspan="3" style="text-align: center; color: #64748b; padding: 30px; font-style: italic; font-size: 0.9rem;">
+                                    No active rules defined. Use the form below to create one.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-
     </main>
 </body>
 
