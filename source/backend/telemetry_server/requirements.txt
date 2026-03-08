@@ -1,0 +1,2 @@
+websockets==16.0
+stomp.py==8.2.0
