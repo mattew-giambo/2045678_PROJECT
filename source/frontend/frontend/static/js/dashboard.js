@@ -1,16 +1,10 @@
 // MarsOps Dashboard JavaScript
 
-// ============== TRACCIAMENTO MIN/MAX SENSORI ==============
+// ============== COSTANTI GLOBALI ==============
 
-/**
- * Oggetto per tracciare min/max di ogni sensore
- * Struttura: { sensor_name: { min: number, max: number, unit: string } }
- */
-const sensorStats = {};
+const SENSOR_SPARKLINE_POINTS = 8;
+const SPARKLINE_POINTS = 8;
 
-/**
- * Unità di misura per ogni sensore
- */
 const sensorUnits = {
   'greenhouse_temperature': '°C',
   'entrance_humidity': '%',
@@ -22,31 +16,28 @@ const sensorUnits = {
   'air_quality_voc': 'ppb'
 };
 
-/**
- * Aggiorna le statistiche min/max per un sensore
- * @param {string} sensorName - Nome del sensore
- * @param {number} value - Valore corrente
- */
+// ============== STORICI ==============
+
+const sensorHistory = {};
+const telemetryHistory = {};
+
+// ============== TRACCIAMENTO MIN/MAX SENSORI ==============
+
+const sensorStats = {};
+
 function updateSensorStats(sensorName, value) {
   const numValue = parseFloat(value);
   if (isNaN(numValue)) return;
-  
+
   const unit = sensorUnits[sensorName] || '';
-  
+
   if (!sensorStats[sensorName]) {
-    // Prima lettura: inizializza min e max
     sensorStats[sensorName] = { min: numValue, max: numValue, unit: unit };
   } else {
-    // Aggiorna min/max
-    if (numValue < sensorStats[sensorName].min) {
-      sensorStats[sensorName].min = numValue;
-    }
-    if (numValue > sensorStats[sensorName].max) {
-      sensorStats[sensorName].max = numValue;
-    }
+    if (numValue < sensorStats[sensorName].min) sensorStats[sensorName].min = numValue;
+    if (numValue > sensorStats[sensorName].max) sensorStats[sensorName].max = numValue;
   }
-  
-  // Aggiorna l'elemento HTML
+
   const minmaxEl = document.getElementById(`sensor-minmax-${sensorName}`);
   if (minmaxEl) {
     const stats = sensorStats[sensorName];
@@ -54,11 +45,9 @@ function updateSensorStats(sensorName, value) {
   }
 }
 
-/**
- * Mostra una pagina e aggiorna la navigazione
- * @param {string} name - Nome della pagina (home, sensors, rules)
- * @param {HTMLElement} el - Elemento di navigazione cliccato
- */
+
+// ============== NAVIGAZIONE ==============
+
 function showPage(name, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -66,186 +55,152 @@ function showPage(name, el) {
   el.classList.add('active');
 }
 
-/**
- * Focus su una riga di telemetria - mostra i dettagli nel pannello laterale
- * @param {HTMLElement} row - Riga di telemetria cliccata
- */
+
+// ============== TELEMETRY FOCUS ==============
+
 function focusTelemetry(row) {
-  // Rimuovi selezione precedente
   document.querySelectorAll('.telem-row').forEach(r => r.classList.remove('selected'));
-  
-  // Aggiungi selezione alla riga cliccata
   row.classList.add('selected');
-  
-  // Estrai i dati dalla riga
+
   const topic = row.dataset.topic;
   const value = row.dataset.value;
   const peak = row.dataset.peak;
   const status = row.dataset.status;
   const points = row.dataset.points;
-  
-  // Aggiorna il pannello focused
+
   document.getElementById('focused-value').textContent = value;
   document.getElementById('focused-topic').textContent = topic;
   document.getElementById('focused-peak').textContent = peak;
   document.getElementById('focused-status').textContent = status;
-  
-  // Aggiorna il grafico
   document.getElementById('focused-polyline').setAttribute('points', points);
-  
-  // Effetto visivo sul pannello
+
   const focusedCard = document.getElementById('focused-card');
   focusedCard.style.borderColor = '#3b82f6';
   setTimeout(() => { focusedCard.style.borderColor = ''; }, 500);
 }
 
-/**
- * Toggle stato di un actuator
- * @param {HTMLElement} toggleBtn - Bottone toggle cliccato
- */
+
+// ============== ACTUATOR TOGGLE ==============
+
 function toggleActuator(toggleBtn) {
   toggleBtn.classList.toggle('on');
   toggleBtn.classList.toggle('off');
 }
 
-/**
- * Apre il popup della storia completa
- */
+
+// ============== HISTORY POPUP ==============
+
 function openHistoryPopup() {
   const popup = document.getElementById('history-popup');
   popup.classList.add('active');
-  document.body.style.overflow = 'hidden'; // Blocca scroll del body
+  document.body.style.overflow = 'hidden';
 }
 
-/**
- * Chiude il popup della storia
- * @param {Event} event - Evento click (opzionale)
- */
 function closeHistoryPopup(event) {
-  // Se l'evento esiste, controlla se è stato cliccato l'overlay
   if (event && event.target !== event.currentTarget) return;
-  
   const popup = document.getElementById('history-popup');
   popup.classList.remove('active');
-  document.body.style.overflow = ''; // Ripristina scroll
+  document.body.style.overflow = '';
 }
 
-/**
- * Chiude il popup con tasto ESC
- */
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    closeHistoryPopup();
-  }
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeHistoryPopup();
 });
 
-// WebSocket connection per real-time updates
+
+// ============== WEBSOCKET ==============
+
 let ws = null;
 
-/**
- * Inizializza la connessione WebSocket
- */
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws`;
-  
+
   ws = new WebSocket(wsUrl);
-  
-  ws.onopen = function() {
-    console.log('WebSocket connected');
+
+  ws.onopen = function () {
+    console.log('[WS] Connected');
   };
-  
-  ws.onmessage = function(event) {
+
+  ws.onmessage = function (event) {
     const data = JSON.parse(event.data);
     handleRealtimeUpdate(data);
   };
-  
-  ws.onclose = function() {
-    console.log('WebSocket disconnected, reconnecting...');
+
+  ws.onclose = function () {
+    console.log('[WS] Disconnected, reconnecting in 3s...');
     setTimeout(initWebSocket, 3000);
   };
-  
-  ws.onerror = function(error) {
-    console.error('WebSocket error:', error);
+
+  ws.onerror = function (error) {
+    console.error('[WS] Error:', error);
   };
 }
 
-/**
- * Gestisce gli aggiornamenti real-time dal WebSocket
- * @param {Object} data - Dati ricevuti dal WebSocket
- */
 function handleRealtimeUpdate(data) {
-  console.log('[WS] Ricevuto:', data);
-  
   if (data.type === 'initial') {
-    // Dati iniziali ricevuti alla connessione
     handleInitialData(data.data);
   } else if (data.type === 'update') {
-    // Aggiornamento da broker
     handleBrokerUpdate(data.source, data.data);
   } else if (data.type === 'actuator_response') {
-    // Risposta a comando attuatore
     handleActuatorResponse(data);
   } else if (data.type === 'actuator_update') {
-    // Attuatore attivato da una regola automatica
-    console.log('[WS] Attuatore attivato da regola:', data);
+    console.log('[WS] actuator_update:', data);
     updateActuatorState(data.actuator, data.state);
     addToHistory(`${data.actuator} set to ${data.action} by rule #${data.rule_id}`);
   }
 }
 
-/**
- * Gestisce i dati iniziali ricevuti alla connessione WebSocket
- * @param {Object} data - Oggetto con tutti i dati correnti
- */
 function handleInitialData(data) {
-  console.log('[WS] Dati iniziali ricevuti:', Object.keys(data).length, 'chiavi');
-  
-  // Lista degli attuatori conosciuti
+  console.log('[WS] Initial data:', Object.keys(data).length, 'keys');
+
   const actuatorNames = ['cooling_fan', 'entrance_humidifier', 'hall_ventilation', 'habitat_heater'];
-  
+
   for (const [key, value] of Object.entries(data)) {
     if (key.startsWith('mars/telemetry/')) {
-      // È un topic di telemetria
       const topic = key.replace('mars/telemetry/', '');
-      updateTelemetryRow(topic, value);
+      // ✅ telemetria normalizzata
+      const normalized = normalizeTelemetryData(topic, value);
+      updateTelemetryRow(topic, normalized);
     } else if (actuatorNames.includes(key)) {
-      // È un attuatore
-      console.log('[WS] Stato attuatore:', key, value);
       const state = value.state === true || value.state === 'ON' || value.action === 'ON';
       updateActuatorState(key, state);
     } else {
-      // È un sensore REST
-      updateSensorCard(key, value);
+      // ✅ sensori normalizzati
+      const normalized = normalizeSensorData(key, value);
+      updateSensorCard(key, normalized);
     }
   }
 }
 
-/**
- * Gestisce un aggiornamento dal message broker
- * @param {string} source - Sorgente del messaggio (topic o nome sensore)
- * @param {Object} data - Dati del messaggio
- */
 function handleBrokerUpdate(source, data) {
   console.log('[WS] handleBrokerUpdate:', source, data);
-  
+
   if (source.startsWith('mars/telemetry/')) {
     const topic = source.replace('mars/telemetry/', '');
-    updateTelemetryRow(topic, data);
-    addToHistory(`${topic}: ${data.value} ${data.unit || ''}`);
+    // ✅ normalizza telemetria
+    const normalized = normalizeTelemetryData(topic, data);
+    updateTelemetryRow(topic, normalized);
+    addToHistory(`${topic}: ${normalized.value} ${normalized.unit || ''}`);
+
   } else if (source.startsWith('mars/sensors/')) {
     const sensor = source.replace('mars/sensors/', '');
-    updateSensorCard(sensor, data);
-    addToHistory(`${sensor}: ${data.value} ${data.unit || ''}`);
+    // ✅ normalizza sensori
+    const normalized = normalizeSensorData(sensor, data);
+    updateSensorCard(sensor, normalized);
+    addToHistory(`${sensor}: ${normalized.value} ${normalized.unit || ''}`);
+
   } else if (source.startsWith('/topic/sensors.')) {
-    // Formato dal polling del simulatore
     const sensor = source.replace('/topic/sensors.', '');
-    console.log('[WS] Aggiorno sensore:', sensor, data);
-    updateSensorCard(sensor, data);
+    // ✅ normalizza sensori dal polling
+    const normalized = normalizeSensorData(sensor, data);
+    updateSensorCard(sensor, normalized);
+
   } else if (source.startsWith('/topic/telemetry.')) {
-    // Formato dal polling del simulatore
     const topic = source.replace('/topic/telemetry.', '');
-    updateTelemetryRow(topic, data);
+    const normalized = normalizeTelemetryData(topic, data);
+    updateTelemetryRow(topic, normalized);
+
   } else if (source.startsWith('mars/actuators/')) {
     const actuator = source.replace('mars/actuators/', '');
     updateActuatorState(actuator, data.state);
@@ -253,107 +208,174 @@ function handleBrokerUpdate(source, data) {
   }
 }
 
-/**
- * Gestisce la risposta a un comando attuatore
- * @param {Object} response - Risposta dal backend
- */
 function handleActuatorResponse(response) {
   if (response.success) {
     console.log(`[Actuator] ${response.actuator} → ${response.action} OK`);
     addToHistory(`${response.actuator} set to ${response.action} manually`);
   } else {
-    console.error(`[Actuator] Errore: ${response.message}`);
+    console.error(`[Actuator] Error: ${response.message}`);
     alert(`Errore: ${response.message}`);
   }
 }
 
+
+// ============== NORMALIZZAZIONE DATI ==============
+
 /**
- * Aggiorna una card sensore con nuovo valore
- * @param {string} sensorName - Nome del sensore
- * @param {Object|string} data - Dati del sensore {value, unit} o valore stringa
+ * Normalizza i dati raw dei SENSORI in formato {value, unit}
+ * Gestisce i vari formati del simulatore
  */
+function normalizeSensorData(sensorName, raw) {
+  if (!raw || typeof raw !== 'object') return { value: raw, unit: sensorUnits[sensorName] || '' };
+
+  // Già nel formato corretto {value, unit}
+  if (raw.value !== undefined) return raw;
+
+  // Formato con "measurements" array (hydroponic_ph, air_quality_voc)
+  if (raw.measurements && Array.isArray(raw.measurements) && raw.measurements.length > 0) {
+    const first = raw.measurements[0];
+    return { value: first.value, unit: first.unit || sensorUnits[sensorName] || '' };
+  }
+
+  // Formati custom per ogni sensore
+  const customMap = {
+    'water_tank_level':       { field: 'level_pct',      unit: '%'     },
+    'air_quality_pm25':       { field: 'pm1_ug_m3',      unit: 'μg/m³' },
+    'corridor_pressure':      { field: 'pressure_kpa',   unit: 'kPa'   },
+    'co2_hall':               { field: 'co2_ppm',        unit: 'ppm'   },
+    'entrance_humidity':      { field: 'humidity_pct',   unit: '%'     },
+    'greenhouse_temperature': { field: 'temperature_c',  unit: '°C'    },
+    'hydroponic_ph':          { field: 'ph',             unit: 'pH'    },
+  };
+
+  if (customMap[sensorName]) {
+    const { field, unit } = customMap[sensorName];
+    if (raw[field] !== undefined) {
+      return { value: raw[field], unit };
+    }
+  }
+
+  // Fallback: cerca il primo campo numerico non-metadata
+  const skipFields = new Set(['sensor_id', 'device_id', 'captured_at', 'timestamp']);
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof val === 'number' && !skipFields.has(key)) {
+      return { value: val, unit: sensorUnits[sensorName] || '' };
+    }
+  }
+
+  console.warn(`[Normalize] Impossibile normalizzare sensore ${sensorName}:`, raw);
+  return { value: 'N/A', unit: '' };
+}
+
+/**
+ * Normalizza i dati raw della TELEMETRIA in formato {value, unit}
+ */
+function normalizeTelemetryData(topic, raw) {
+  if (!raw || typeof raw !== 'object') return { value: raw, unit: '' };
+
+  // Già nel formato corretto
+  if (raw.value !== undefined) return raw;
+
+  // ✅ Formato con "measurements" array (radiation, life_support)
+  if (raw.measurements && Array.isArray(raw.measurements) && raw.measurements.length > 0) {
+    const first = raw.measurements[0];
+    return { value: first.value, unit: first.unit || '' };
+  }
+
+  // ✅ Mappa aggiornata con i field name reali del simulatore
+  const telemMap = {
+    'solar_array':       { field: 'power_kw',        unit: 'kW'    },
+    'thermal_loop':      { field: 'temperature_c',   unit: '°C'    },
+    'power_bus':         { field: 'power_kw',        unit: 'kW'    },
+    'power_consumption': { field: 'power_kw',        unit: 'kW'    },
+    'airlock':           { field: 'cycles_per_hour', unit: 'cyc/h' },
+  };
+
+  if (telemMap[topic]) {
+    const { field, unit } = telemMap[topic];
+    if (raw[field] !== undefined) {
+      return { value: raw[field], unit };
+    }
+  }
+
+  // Fallback: primo campo numerico non-metadata
+  const skipFields = new Set(['airlock_id', 'event_time', 'topic', 'subsystem', 'loop', 'cumulative_kwh']);
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof val === 'number' && !skipFields.has(key)) {
+      return { value: val, unit: '' };
+    }
+  }
+
+  console.warn(`[Normalize] Impossibile normalizzare telemetria ${topic}:`, raw);
+  return { value: 'N/A', unit: '' };
+}
+
+// ============== SENSOR CARDS ==============
+
 function updateSensorCard(sensorName, data) {
-  // Estrai valore e unità
   let displayValue;
   let numericValue;
+
   if (typeof data === 'object' && data !== null) {
-    displayValue = `${data.value} ${data.unit || ''}`;
+    displayValue = `${data.value} ${data.unit || ''}`.trim();
     numericValue = parseFloat(data.value);
   } else {
     displayValue = String(data);
     numericValue = parseFloat(data);
   }
 
-  // Aggiorna statistiche min/max
   updateSensorStats(sensorName, numericValue);
 
-  // Aggiorna sparkline solo se il valore è valido
   if (!sensorHistory[sensorName]) sensorHistory[sensorName] = Array(SENSOR_SPARKLINE_POINTS).fill(null);
-  if (!isNaN(numericValue)) {
-    sensorHistory[sensorName].push(numericValue);
-    if (sensorHistory[sensorName].length > SENSOR_SPARKLINE_POINTS) {
-      sensorHistory[sensorName].shift();
-    }
-  } else {
-    // Se il valore non è valido, aggiungi null per mantenere la lunghezza
-    sensorHistory[sensorName].push(null);
-    if (sensorHistory[sensorName].length > SENSOR_SPARKLINE_POINTS) {
-      sensorHistory[sensorName].shift();
-    }
-  }
+  sensorHistory[sensorName].push(!isNaN(numericValue) ? numericValue : null);
+  if (sensorHistory[sensorName].length > SENSOR_SPARKLINE_POINTS) sensorHistory[sensorName].shift();
+
   updateSensorSparkline(sensorName, sensorHistory[sensorName]);
 
-  // Aggiorna usando gli ID
   const valueEl = document.getElementById(`sensor-value-${sensorName}`);
   const badgeEl = document.getElementById(`sensor-badge-${sensorName}`);
-  if (valueEl) {
-    valueEl.textContent = displayValue;
-  }
-  if (badgeEl) {
-    badgeEl.textContent = displayValue;
-  }
+  if (valueEl) valueEl.textContent = displayValue;
+  if (badgeEl) badgeEl.textContent = displayValue;
+
   console.log(`[Sensor] ${sensorName} → ${displayValue}`);
 }
 
-// Inizializza lo storico dei sensori a zeri e aggiorna le polylines SVG
-const SENSOR_SPARKLINE_POINTS = 8;
-
-// Storico per sensori e telemetry
-const sensorHistory = {};
 function updateSensorSparkline(sensorName, historyArr) {
-    const width = 300;
-    const height = 80;
-    const margin = 16;
-    // Calcolo max/min ignorando valori nulli o non numerici
-    const valid = historyArr.filter(v => typeof v === 'number' && !isNaN(v));
-    const poly = document.getElementById(`chart-${sensorName}`);
-     if (!poly) return;
-        if (valid.length === 0) {
-            poly.setAttribute('points', '');
+  const width = 300;
+  const height = 80;
+  const margin = 16;
+
+  const valid = historyArr.filter(v => typeof v === 'number' && !isNaN(v));
+  const poly = document.getElementById(`chart-${sensorName}`);
+  if (!poly) return;
+
+  if (valid.length === 0) {
+    poly.setAttribute('points', '');
     poly.setAttribute('stroke', 'none');
     return;
   }
-    let max = Math.max(...valid);
-    let min = Math.min(...valid);
-    if (max === min) { max += 1; min -= 1; }
-    const range = max - min;
-    const step = width / (SENSOR_SPARKLINE_POINTS - 1);
-    const points = historyArr.map((v, i) => {
-        if (typeof v !== 'number' || isNaN(v)) return '';
-        const y = height - margin - ((v - min) / range) * (height - 2 * margin);
-        const x = i * step;
-        return `${x},${y.toFixed(1)}`;
-    }).filter(Boolean).join(' ');
-    poly.setAttribute('points', points);
-    poly.setAttribute('stroke-width', '2.5');
-    poly.setAttribute('stroke', '#2563eb');
-    poly.setAttribute('fill', 'none');
-  // Aggiorna o crea la linea di base
-    let base = document.getElementById(`chart-base-${sensorName}`);
+
+  let max = Math.max(...valid);
+  let min = Math.min(...valid);
+  if (max === min) { max += 1; min -= 1; }
+  const step = width / (SENSOR_SPARKLINE_POINTS - 1);
+
+  const points = historyArr.map((v, i) => {
+    if (typeof v !== 'number' || isNaN(v)) return '';
+    const y = height - margin - ((v - min) / (max - min)) * (height - 2 * margin);
+    const x = i * step;
+    return `${x},${y.toFixed(1)}`;
+  }).filter(Boolean).join(' ');
+
+  poly.setAttribute('points', points);
+  poly.setAttribute('stroke-width', '2.5');
+  poly.setAttribute('stroke', '#2563eb');
+  poly.setAttribute('fill', 'none');
+
+  let base = document.getElementById(`chart-base-${sensorName}`);
   const baseY = height - margin;
-  const baseLine = `0,${baseY} ${width},${baseY}`;
   if (!base) {
-    const svg = poly && poly.parentElement;
+    const svg = poly.parentElement;
     if (svg) {
       base = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
       base.setAttribute('id', `chart-base-${sensorName}`);
@@ -363,56 +385,37 @@ function updateSensorSparkline(sensorName, historyArr) {
       svg.insertBefore(base, poly);
     }
   }
-  if (base) {
-    base.setAttribute('points', baseLine);
-  }
+  if (base) base.setAttribute('points', `0,${baseY} ${width},${baseY}`);
 }
 
-// Inizializza storici a zeri
-Object.keys(sensorUnits).forEach(sensorName => {
-  sensorHistory[sensorName] = Array(SENSOR_SPARKLINE_POINTS).fill(0);
-  updateSensorSparkline(sensorName, sensorHistory[sensorName]);
-});
 
-/**
- * Aggiorna una riga di telemetria con nuovo valore
- * @param {string} topic - Topic della telemetria (senza prefisso mars/telemetry/)
- * @param {Object|string} data - Dati {value, unit} o valore
- */
+// ============== TELEMETRY ROWS ==============
+
 function updateTelemetryRow(topic, data) {
-  // Estrai valore
   let displayValue;
   let numericValue;
+
   if (typeof data === 'object' && data !== null) {
-    displayValue = `${data.value} ${data.unit || ''}`;
+    displayValue = `${data.value} ${data.unit || ''}`.trim();
     numericValue = parseFloat(data.value);
   } else {
     displayValue = String(data);
     numericValue = parseFloat(data);
   }
 
-  // Trova la riga per topic
   const row = document.querySelector(`.telem-row[data-topic="${topic}"]`);
   if (row) {
     const valueEl = row.querySelector('.telem-value');
-    if (valueEl) {
-      valueEl.textContent = displayValue;
-    }
+    if (valueEl) valueEl.textContent = displayValue;
     row.dataset.value = displayValue;
 
-    // Aggiorna sparkline
     if (!telemetryHistory[topic]) telemetryHistory[topic] = [];
     if (!isNaN(numericValue)) {
       telemetryHistory[topic].push(numericValue);
-      if (telemetryHistory[topic].length > SPARKLINE_POINTS) {
-        telemetryHistory[topic].shift();
-      }
-      updateSparkline(row, telemetryHistory[topic]);
+      if (telemetryHistory[topic].length > SPARKLINE_POINTS) telemetryHistory[topic].shift();
+      updateTelemetrySparkline(topic, telemetryHistory[topic]);
     }
 
-    updateTelemetrySparkline(topic, telemetryHistory[topic]);
-
-    // Se questa riga è selezionata, aggiorna anche il pannello focused
     if (row.classList.contains('selected')) {
       document.getElementById('focused-value').textContent = displayValue;
     }
@@ -421,198 +424,181 @@ function updateTelemetryRow(topic, data) {
   console.log(`[Telemetry] ${topic} → ${displayValue}`);
 }
 
-/**
- * Aggiorna lo stato di un actuator
- * @param {string} actuatorName - Nome dell'actuator
- * @param {boolean} state - Stato (true = ON, false = OFF)
- */
+function updateTelemetrySparkline(topic, historyArr) {
+  const row = document.querySelector(`.telem-row[data-topic="${topic}"]`);
+  if (!row) return;
+
+  const svg = row.querySelector('.sparkline svg');
+  if (!svg) return;
+
+  let poly = svg.querySelector('polyline');
+  if (!poly) {
+    poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    poly.setAttribute('class', 'sparkline-path');
+    svg.appendChild(poly);
+  }
+
+  const valid = historyArr.filter(v => !isNaN(v));
+  if (valid.length < 2) return;
+
+  // ✅ Dimensioni sparkline piccola (nella riga)
+  const W = 100, H = 24, M = 2;
+
+  let max = Math.max(...valid);
+  let min = Math.min(...valid);
+  if (max === min) { max += 1; min -= 1; }
+
+  const step = W / (historyArr.length - 1);
+  const points = historyArr.map((v, i) => {
+    const y = H - M - ((v - min) / (max - min)) * (H - 2 * M);
+    const x = i * step;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  poly.setAttribute('points', points);
+  poly.setAttribute('fill', 'none');
+  poly.setAttribute('stroke', '#3b82f6');
+  poly.setAttribute('stroke-width', '1.5');
+
+  // ✅ Aggiorna focused chart con viewBox 200x80
+  if (row.classList.contains('selected')) {
+    const FW = 200, FH = 80, FM = 8;
+    const fStep = FW / (historyArr.length - 1);
+    const focusedPoints = historyArr.map((v, i) => {
+      const y = FH - FM - ((v - min) / (max - min)) * (FH - 2 * FM);
+      const x = i * fStep;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    document.getElementById('focused-polyline').setAttribute('points', focusedPoints);
+  }
+}
+
+
+// ============== ACTUATORS ==============
+
 function updateActuatorState(actuatorName, state) {
-  // Trova la row dell'attuatore usando data-actuator
   const row = document.querySelector(`.actuator-row[data-actuator="${actuatorName}"]`);
   if (row) {
-    // Aggiorna il badge di stato
     const badge = row.querySelector('.actuator-status-badge');
     if (badge) {
       badge.classList.remove('on', 'off');
       badge.classList.add(state ? 'on' : 'off');
       badge.textContent = state ? 'ON' : 'OFF';
     }
-    
-    // Aggiorna timestamp
+
     const toggledEl = row.querySelector('.act-toggled');
     if (toggledEl) {
-      const now = new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+      const now = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       toggledEl.textContent = `Last toggled: ${now}`;
     }
-    
-    // Effetto flash
+
     row.classList.add('updated');
     setTimeout(() => row.classList.remove('updated'), 500);
   }
-  
-  // Aggiorna il conteggio degli attuatori attivi
   updateActiveActuatorsCount();
 }
 
-/**
- * Aggiorna il conteggio degli attuatori attivi
- */
 function updateActiveActuatorsCount() {
   const activeBadges = document.querySelectorAll('.actuator-status-badge.on');
   const countEl = document.getElementById('actuators-active-count');
-  if (countEl) {
-    const count = activeBadges.length;
-    countEl.textContent = `${count} active now`;
-  }
+  if (countEl) countEl.textContent = `${activeBadges.length} active now`;
 }
 
-/**
- * Aggiunge un evento alla storia
- * @param {string} text - Testo dell'evento
- */
-function addToHistory(text) {
-  const historyCard = document.querySelector('.history-card');
-  if (!historyCard) return;
-  
-  const now = new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
-  
-  // Crea nuova riga
-  const newRow = document.createElement('div');
-  newRow.className = 'history-row';
-  newRow.innerHTML = `<span class="history-time">${now}</span><span class="history-text">${text}</span>`;
-  
-  // Inserisci dopo l'h3
-  const h3 = historyCard.querySelector('h3');
-  if (h3 && h3.nextSibling) {
-    historyCard.insertBefore(newRow, h3.nextSibling);
-  }
-  
-  // Aggiungi anche al popup
-  const popupList = document.getElementById('history-list');
-  if (popupList) {
-    const popupRow = newRow.cloneNode(true);
-    popupList.insertBefore(popupRow, popupList.firstChild);
-  }
-  
-  // Limita a 6 righe visibili nella card principale (escluso h3 e button)
-  const allRows = historyCard.querySelectorAll('.history-row');
-  if (allRows.length > 6) {
-    // Rimuovi le ultime oltre le 6
-    for (let i = 6; i < allRows.length; i++) {
-      allRows[i].remove();
-    }
-  }
-}
-
-/**
- * Invia un comando all'attuatore tramite WebSocket
- * @param {string} actuatorName - Nome dell'attuatore
- * @param {string} action - Azione (ON o OFF)
- */
 function sendActuatorCommand(actuatorName, action) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(`actuator:${actuatorName}:${action}`);
-    console.log(`[WS] Inviato comando: ${actuatorName} → ${action}`);
+    console.log(`[WS] Sent command: ${actuatorName} → ${action}`);
   } else {
-    console.error('[WS] WebSocket non connesso');
+    console.error('[WS] Not connected');
     alert('Connessione persa. Ricarica la pagina.');
   }
 }
 
 
-// ============== GESTIONE REGOLE ==============
+// ============== HISTORY ==============
 
-/**
- * Carica le regole dal backend
- */
+function addToHistory(text) {
+  const historyCard = document.querySelector('.history-card');
+  if (!historyCard) return;
+
+  const now = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const newRow = document.createElement('div');
+  newRow.className = 'history-row';
+  newRow.innerHTML = `<span class="history-time">${now}</span><span class="history-text">${text}</span>`;
+
+  const h3 = historyCard.querySelector('h3');
+  if (h3 && h3.nextSibling) historyCard.insertBefore(newRow, h3.nextSibling);
+
+  const popupList = document.getElementById('history-list');
+  if (popupList) {
+    popupList.insertBefore(newRow.cloneNode(true), popupList.firstChild);
+  }
+
+  const allRows = historyCard.querySelectorAll('.history-row');
+  if (allRows.length > 6) {
+    for (let i = 6; i < allRows.length; i++) allRows[i].remove();
+  }
+}
+
+
+// ============== RULES ==============
+
 async function loadRules() {
   try {
     const response = await fetch('/api/rules');
     const data = await response.json();
-    
     if (data.rules) {
       renderRulesTable(data.rules);
       updateRulesCount(data.rules.length);
     }
   } catch (error) {
-    console.error('[Rules] Errore caricamento:', error);
+    console.error('[Rules] Load error:', error);
   }
 }
 
-/**
- * Renderizza la tabella delle regole
- * @param {Array} rules - Array di regole
- */
 function renderRulesTable(rules) {
   const tbody = document.querySelector('.rules-table tbody');
   if (!tbody) return;
-  
+
   tbody.innerHTML = '';
-  
+
   if (rules.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#9ca3af;">Nessuna regola definita</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#9ca3af;">Nessuna regola definita</td></tr>';
     return;
   }
-  
+
   rules.forEach(rule => {
     const tr = document.createElement('tr');
     tr.dataset.ruleId = rule.id;
-    
-    // Costruisci la logica leggibile
     const logic = `IF ${rule.sensor_name} ${rule.operator} ${rule.threshold_value} ${rule.unit} THEN ${rule.actuator_name} → ${rule.action}`;
-    
-    // Formatta la data
     const date = rule.timestamp ? new Date(rule.timestamp).toLocaleDateString('it-IT') : 'N/A';
-    
     tr.innerHTML = `
       <td class="rule-logic">${logic}</td>
       <td>${date}</td>
       <td><button class="btn-delete" onclick="deleteRule(${rule.id})">Delete</button></td>
     `;
-    
     tbody.appendChild(tr);
   });
 }
 
-/**
- * Aggiorna il conteggio delle regole nella home
- */
 function updateRulesCount(count) {
   const countEl = document.querySelector('.rules-num .num');
-  if (countEl) {
-    countEl.textContent = count;
-  }
+  if (countEl) countEl.textContent = count;
 }
 
-/**
- * Crea una nuova regola
- */
 async function createRule() {
-  // Ottieni i valori dal form
   const sensorName = document.getElementById('rule-sensor').value;
   const operator = document.getElementById('rule-operator').value;
   const thresholdValue = parseFloat(document.getElementById('rule-value').value);
   const action = document.getElementById('rule-action').value;
   const actuatorName = document.getElementById('rule-target').value;
-  
-  // Validazione
+
   if (!sensorName || !operator || isNaN(thresholdValue) || !action || !actuatorName) {
     alert('Compila tutti i campi!');
     return;
   }
-  
-  // Mappa sensore → unità
-  const sensorUnits = {
-    'greenhouse_temperature': '°C',
-    'entrance_humidity': '%',
-    'co2_hall': 'ppm',
-    'corridor_pressure': 'kPa',
-    'water_tank_level': '%',
-    'hydroponic_ph': 'pH',
-    'air_quality_pm25': 'μg/m³',
-    'air_quality_voc': 'ppb'
-  };
-  
+
   const rule = {
     sensor_name: sensorName,
     operator: operator,
@@ -621,16 +607,15 @@ async function createRule() {
     actuator_name: actuatorName,
     action: action
   };
-  
+
   try {
     const response = await fetch('/api/rules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rule)
     });
-    
     const result = await response.json();
-    
+
     if (result.success) {
       alert('Regola creata con successo!');
       clearRuleForm();
@@ -640,27 +625,18 @@ async function createRule() {
       alert('Errore: ' + (result.error || 'Impossibile creare la regola'));
     }
   } catch (error) {
-    console.error('[Rules] Errore creazione:', error);
+    console.error('[Rules] Create error:', error);
     alert('Errore di connessione');
   }
 }
 
-/**
- * Elimina una regola
- * @param {number} ruleId - ID della regola da eliminare
- */
 async function deleteRule(ruleId) {
-  if (!confirm('Sei sicuro di voler eliminare questa regola?')) {
-    return;
-  }
-  
+  if (!confirm('Sei sicuro di voler eliminare questa regola?')) return;
+
   try {
-    const response = await fetch(`/api/rules/${ruleId}`, {
-      method: 'DELETE'
-    });
-    
+    const response = await fetch(`/api/rules/${ruleId}`, { method: 'DELETE' });
     const result = await response.json();
-    
+
     if (result.success) {
       loadRules();
       addToHistory(`Regola #${ruleId} eliminata`);
@@ -668,14 +644,11 @@ async function deleteRule(ruleId) {
       alert('Errore: ' + (result.error || 'Impossibile eliminare la regola'));
     }
   } catch (error) {
-    console.error('[Rules] Errore eliminazione:', error);
+    console.error('[Rules] Delete error:', error);
     alert('Errore di connessione');
   }
 }
 
-/**
- * Pulisce il form delle regole
- */
 function clearRuleForm() {
   document.getElementById('rule-sensor').selectedIndex = 0;
   document.getElementById('rule-operator').selectedIndex = 0;
@@ -685,43 +658,28 @@ function clearRuleForm() {
 }
 
 
-// Inizializza quando il DOM è pronto
-document.addEventListener('DOMContentLoaded', function() {
-  // Inizializza le statistiche min/max con i valori correnti dal template
-  initSensorStats();
-  
-  // Inizializza WebSocket
-  initWebSocket();
-  
-  // Carica le regole
-  loadRules();
-  
-  console.log('🚀 MarsOps Dashboard initialized');
-});
+// ============== INIT ==============
 
-/**
- * Inizializza le statistiche min/max leggendo i valori correnti dal DOM
- */
 function initSensorStats() {
-  const sensors = Object.keys(sensorUnits);
-  
-  sensors.forEach(sensorName => {
+  Object.keys(sensorUnits).forEach(sensorName => {
     const valueEl = document.getElementById(`sensor-value-${sensorName}`);
     if (valueEl) {
-      // Estrai il valore numerico dal testo (es. "24.5 °C" -> 24.5)
       const text = valueEl.textContent.trim();
       const match = text.match(/^([\d.]+)/);
-      if (match) {
-        const value = parseFloat(match[1]);
-        updateSensorStats(sensorName, value);
-        console.log(`[Stats] Initialized ${sensorName}: ${value}`);
-      }
+      if (match) updateSensorStats(sensorName, parseFloat(match[1]));
     }
   });
 }
 
-// Inizializza lo storico dei sensori a zeri
+// Inizializza storici sensori
 Object.keys(sensorUnits).forEach(sensorName => {
   sensorHistory[sensorName] = Array(SENSOR_SPARKLINE_POINTS).fill(0);
   updateSensorSparkline(sensorName, sensorHistory[sensorName]);
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  initSensorStats();
+  initWebSocket();
+  loadRules();
+  console.log('🚀 MarsOps Dashboard initialized');
 });

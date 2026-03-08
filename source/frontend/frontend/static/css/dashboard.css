@@ -159,8 +159,21 @@ overflow: hidden;
 .focused-card { background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 10px; padding: 16px; transition: border-color 0.3s; }
 .focused-card h4 { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; font-weight: 600; }
 .focused-val { font-size: 1.8rem; font-weight: 700; color: #111827; margin-bottom: 8px; }
-.focused-chart { height: 80px; background: #e5e7eb; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; }
-.focused-chart svg { width: 100%; height: 100%; }
+.focused-chart {
+  width: 400px;
+  height: 160px;
+  background: #e5e7eb;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.focused-chart svg {
+  width: 400px;
+  height: 160px;
+  display: block;
+}
 .focused-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .focused-meta-item { background: #fff; border-radius: 6px; padding: 8px 10px; border: 1px solid #e5e7eb; }
 .focused-meta-item .meta-label { font-size: 0.65rem; color: #9ca3af; font-weight: 600; text-transform: uppercase; }
@@ -419,4 +432,9 @@ overflow: hidden;
 
 .ws-status.disconnected::before {
   background: #ef4444;
+}
+.focused-chart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }

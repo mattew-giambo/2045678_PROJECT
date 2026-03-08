@@ -141,14 +141,17 @@
           <p style="font-size:0.72rem;color:#9ca3af;margin-bottom:8px;">Click on a telemetry row to view details</p>
           <div class="focused-val" id="focused-value">1500 W</div>
           <div class="focused-chart">
-            <svg viewBox="0 0 200 80" id="focused-chart-svg">
-              <polyline id="focused-polyline" points="0,60 25,50 50,55 75,40 100,45 125,30 150,20 175,15 200,10" fill="none" stroke="#3b82f6" stroke-width="2"/>
-              <line x1="10" y1="0" x2="10" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
-              <line x1="50" y1="0" x2="50" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
-              <line x1="100" y1="0" x2="100" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
-              <line x1="150" y1="0" x2="150" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
-              <line x1="200" y1="0" x2="200" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
-            </svg>
+            <svg viewBox="0 0 200 80" id="focused-chart-svg" preserveAspectRatio="none" style="width:100%;height:100%;">
+  <polyline id="focused-polyline" 
+    points="0,60 25,50 50,55 75,40 100,45 125,30 150,20 175,15 200,10" 
+    fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <line x1="10" y1="0" x2="10" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
+  <line x1="50" y1="0" x2="50" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
+  <line x1="100" y1="0" x2="100" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
+  <line x1="150" y1="0" x2="150" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
+  <line x1="200" y1="0" x2="200" y2="80" stroke="#e5e7eb" stroke-width="0.5"/>
+</svg>
+
           </div>
           <div class="focused-meta">
             <div class="focused-meta-item"><div class="meta-label">Topic</div><div class="meta-val" id="focused-topic">solar_array</div></div>
